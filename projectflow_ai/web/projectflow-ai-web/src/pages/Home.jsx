@@ -13,12 +13,12 @@ import {
   ArrowRight 
 } from 'lucide-react';
 
-export default function Home({ onNavigate }) {
+// 1. Desestruture as props corretas enviadas pelo App.js
+export default function Home({ onOpenLogin, onOpenForm }) {
   const [searchProtocol, setSearchProtocol] = useState('');
   const [searchResult, setSearchResult] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Exemplo de mockup de ideias de destaque (Ranqueadas pela IA)
   const topIdeas = [
     {
       id: 'PROJ-8921',
@@ -49,14 +49,12 @@ export default function Home({ onNavigate }) {
     }
   ];
 
-  // Função simulada para consulta de ideias/projetos
   const handleSearch = (e) => {
     e.preventDefault();
     if (!searchProtocol.trim()) return;
 
     setIsSearching(true);
     setTimeout(() => {
-      // Simula resultado da consulta
       setSearchResult({
         id: searchProtocol.toUpperCase(),
         title: 'Análise Preditiva para Manutenção de Equipamentos',
@@ -85,17 +83,19 @@ export default function Home({ onNavigate }) {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Botão para Nova Ideia */}
           <button 
-            onClick={() => onNavigate && onNavigate('public-form')}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 hover:border-cyan-500/50 rounded-lg transition-all"
+            onClick={onOpenForm}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 hover:border-cyan-500/50 rounded-lg transition-all cursor-pointer"
           >
             <FileText className="w-4 h-4" />
             Nova Ideia / Projeto
           </button>
           
+          {/* Botão para Login */}
           <button 
-            onClick={() => onNavigate && onNavigate('login')}
-            className="flex items-center gap-2 px-5 py-2 text-sm font-medium bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold rounded-lg shadow-lg shadow-cyan-500/20 transition-all"
+            onClick={onOpenLogin}
+            className="flex items-center gap-2 px-5 py-2 text-sm font-medium bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold rounded-lg shadow-lg shadow-cyan-500/20 transition-all cursor-pointer"
           >
             <LogIn className="w-4 h-4" />
             Área Restrita (Login)
@@ -105,7 +105,7 @@ export default function Home({ onNavigate }) {
 
       <main className="max-w-7xl mx-auto px-6 py-10 space-y-16">
         
-        {/* 2. HERO SECTION COM INCENTIVO E INOVAÇÃO */}
+        {/* HERO SECTION */}
         <section className="text-center py-8 max-w-4xl mx-auto space-y-6">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-400 text-xs font-semibold tracking-wide uppercase">
             <TrendingUp className="w-3.5 h-3.5" />
@@ -124,9 +124,10 @@ export default function Home({ onNavigate }) {
           </p>
 
           <div className="flex flex-wrap justify-center gap-4 pt-4">
+            {/* Botão Principal no Hero */}
             <button 
-              onClick={() => onNavigate && onNavigate('public-form')}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 font-bold rounded-lg shadow-xl shadow-cyan-500/15 transition-all text-base"
+              onClick={onOpenForm}
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 font-bold rounded-lg shadow-xl shadow-cyan-500/15 transition-all text-base cursor-pointer"
             >
               <Lightbulb className="w-5 h-5 fill-slate-950" />
               Cadastrar Nova Ideia
@@ -142,7 +143,7 @@ export default function Home({ onNavigate }) {
           </div>
         </section>
 
-        {/* 3. PAINEL DE MÉTRICAS (BIG NUMBERS) */}
+        {/* METRICS SECTION */}
         <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-gradient-to-br from-slate-900 to-slate-900/60 border border-slate-800 p-8 rounded-xl relative overflow-hidden group hover:border-cyan-500/40 transition-all">
             <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -173,7 +174,7 @@ export default function Home({ onNavigate }) {
           </div>
         </section>
 
-        {/* 4. SEÇÃO DE INSTRUÇÕES E OBJETIVO DA PLATAFORMA */}
+        {/* GOVERNANCE SECTION */}
         <section className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 sm:p-10 space-y-8">
           <div className="max-w-2xl space-y-2">
             <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -218,7 +219,7 @@ export default function Home({ onNavigate }) {
           </div>
         </section>
 
-        {/* 5. CONSULTAR IDEIA / PROJETO */}
+        {/* SEARCH SECTION */}
         <section id="consultar" className="bg-gradient-to-r from-slate-900 via-slate-900 to-cyan-950/30 border border-slate-800 rounded-2xl p-8 space-y-6">
           <div className="max-w-xl">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -241,13 +242,12 @@ export default function Home({ onNavigate }) {
             <button 
               type="submit"
               disabled={isSearching}
-              className="px-6 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm rounded-lg transition-all flex items-center justify-center gap-2"
+              className="px-6 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               {isSearching ? 'Buscando...' : 'Consultar'}
             </button>
           </form>
 
-          {/* Card de Resultado da Busca */}
           {searchResult && (
             <div className="mt-4 p-5 bg-slate-950 border border-cyan-500/30 rounded-xl space-y-3 max-w-xl animate-fadeIn">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -269,7 +269,7 @@ export default function Home({ onNavigate }) {
           )}
         </section>
 
-        {/* 6. ESPAÇO PARA AS IDEIAS MAIS BEM COLOCADAS (HALL DA INOVAÇÃO) */}
+        {/* HIGHLIGHTS SECTION */}
         <section className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -312,7 +312,6 @@ export default function Home({ onNavigate }) {
 
       </main>
 
-      {/* FOOTER */}
       <footer className="border-t border-slate-800 bg-slate-950 py-8 text-center text-xs text-slate-500">
         <p>© 2026 ProjectFlow AI. Governança Inteligente de Projetos & Innovation Center.</p>
       </footer>

@@ -58,14 +58,18 @@ export default function Login({ onBack, onLoginSuccess }) {
 
       <div className="max-w-md w-full space-y-6 relative z-10">
         
-        {/* Botão Voltar */}
-        <button 
-          onClick={onBack}
-          className="flex items-center gap-2 text-sm text-slate-400 hover:text-cyan-400 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> Voltar para a Home
-        </button>
-
+   {/* Botão Voltar para a Home ajustado */}
+<button 
+  onClick={() => {
+    window.location.href = '/'; // 👈 Força o redirecionamento direto para a raiz
+  }}
+  type="button"
+  className="flex items-center gap-2 text-sm text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer"
+>
+  <ArrowLeft className="w-4 h-4" /> Voltar para a Home
+</button>
+       
+        
         {/* Card do Login */}
         <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl space-y-6">
           <div className="text-center space-y-2">
