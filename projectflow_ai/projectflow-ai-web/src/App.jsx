@@ -3,10 +3,12 @@ import Home from './pages/Home';
 import PublicForm from './pages/PublicForm';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import ProjectSearch from './pages/ProjectSearch';
 import { supabase } from './supabaseClient';
 
 const ALLOWED_ROLES = ['administrador', 'desenvolvedor', 'po', 'scrum master', 'teste'];
+const ADMIN_ROLES = ['administrador'];
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -90,6 +92,17 @@ export default function App() {
     await supabase.auth.signOut();
   };
 
+  const handleLoginSuccess = (userSession) => {
+    setAccessDeniedError('');
+    setSession({ user: userSession.user });
+    setProfile({
+      id: userSession.user.id,
+      role: userSession.role,
+      full_name: userSession.fullName,
+      email: userSession.user.email
+    });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 text-cyan-400 flex flex-col items-center justify-center font-mono text-xs gap-3">
@@ -101,12 +114,25 @@ export default function App() {
 
   if (session && profile) {
     const currentUser = {
-      id: session.user.id,
-      email: session.user.email,
-      fullName: profile.full_name || session.user.email.split('@')[0],
+      id: session.user?.id || profile.id,
+      email: session.user?.email || profile.email,
+      fullName: profile.full_name || session.user?.email?.split('@')[0],
       role: profile.role,
       department: profile.department || 'Geral'
     };
+
+    const userRole = (profile.role || '').toLowerCase().trim();
+    const isAdmin = ADMIN_ROLES.includes(userRole);
+
+    if (isAdmin) {
+      return (
+        <AdminDashboard
+          userSession={currentUser}
+          profile={profile}
+          onLogout={handleLogout}
+        />
+      );
+    }
 
     return (
       <Dashboard
@@ -130,10 +156,7 @@ export default function App() {
             setAccessDeniedError('');
             setCurrentScreen('home');
           }}
-          onLoginSuccess={(userSession) => {
-            setAccessDeniedError('');
-            setSession(userSession.user);
-          }}
+          onLoginSuccess={handleLoginSuccess}
         />
       </div>
     );
@@ -147,7 +170,6 @@ export default function App() {
     );
   }
 
-  {/* NOVA TELA: Busca de Projetos por Email */}
   if (currentScreen === 'project_search') {
     return (
       <ProjectSearch
