@@ -3,9 +3,9 @@ import Home from './pages/Home';
 import PublicForm from './pages/PublicForm';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import ProjectSearch from './pages/ProjectSearch';
 import { supabase } from './supabaseClient';
 
-// Roles autorizadas a acessar o Dashboard
 const ALLOWED_ROLES = ['administrador', 'desenvolvedor', 'po', 'scrum master', 'teste'];
 
 export default function App() {
@@ -13,12 +13,9 @@ export default function App() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [accessDeniedError, setAccessDeniedError] = useState('');
-  
-  // NAVEGAÇÃO DESLOGADO: 'home', 'login' ou 'public_form'
   const [currentScreen, setCurrentScreen] = useState('home');
 
   useEffect(() => {
-    // 1. Obtém sessão ativa ao carregar a aplicação
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
@@ -28,7 +25,6 @@ export default function App() {
       }
     });
 
-    // 2. Escuta mudanças na autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session?.user) {
@@ -43,7 +39,6 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Busca o profile no Supabase e valida as regras de privilégio/role
   const validateAndFetchProfile = async (userId) => {
     try {
       setLoading(true);
@@ -61,13 +56,11 @@ export default function App() {
         return;
       }
 
-      // Regra 1: O registro na tabela 'profiles' precisa existir
       if (!data) {
         await handleUnauthorized('Acesso negado: Perfil de usuário não encontrado no sistema.');
         return;
       }
 
-      // Regra 2: A coluna 'role' deve corresponder aos papéis permitidos
       const userRole = data.role ? data.role.toLowerCase().trim() : '';
       const isRoleAllowed = ALLOWED_ROLES.includes(userRole);
 
@@ -76,7 +69,6 @@ export default function App() {
         return;
       }
 
-      // Se passou em todas as validações, define o perfil ativo
       setProfile(data);
     } catch (err) {
       console.error('Falha na validação do perfil:', err);
@@ -86,7 +78,6 @@ export default function App() {
     }
   };
 
-  // Função para deslogar e exibir mensagem de erro caso o perfil seja inválido
   const handleUnauthorized = async (message) => {
     setAccessDeniedError(message);
     setProfile(null);
@@ -99,7 +90,6 @@ export default function App() {
     await supabase.auth.signOut();
   };
 
-  // TELA DE CARREGAMENTO
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 text-cyan-400 flex flex-col items-center justify-center font-mono text-xs gap-3">
@@ -109,7 +99,6 @@ export default function App() {
     );
   }
 
-  // USUÁRIO AUTENTICADO E COM ROLE VÁLIDA
   if (session && profile) {
     const currentUser = {
       id: session.user.id,
@@ -120,15 +109,14 @@ export default function App() {
     };
 
     return (
-      <Dashboard 
-        userSession={currentUser} 
-        profile={profile} 
-        onLogout={handleLogout} 
+      <Dashboard
+        userSession={currentUser}
+        profile={profile}
+        onLogout={handleLogout}
       />
     );
   }
 
-  // TELA DE LOGIN (Mostra mensagem caso tenha sido bloqueado por role)
   if (currentScreen === 'login') {
     return (
       <div className="relative">
@@ -137,11 +125,11 @@ export default function App() {
             {accessDeniedError}
           </div>
         )}
-        <Login 
+        <Login
           onBack={() => {
             setAccessDeniedError('');
             setCurrentScreen('home');
-          }} 
+          }}
           onLoginSuccess={(userSession) => {
             setAccessDeniedError('');
             setSession(userSession.user);
@@ -151,23 +139,31 @@ export default function App() {
     );
   }
 
-  // FORMULÁRIO PÚBLICO
   if (currentScreen === 'public_form') {
     return (
-      <PublicForm 
-        onBack={() => setCurrentScreen('home')} 
+      <PublicForm
+        onBack={() => setCurrentScreen('home')}
       />
     );
   }
 
-  // HOME PADRÃO
+  {/* NOVA TELA: Busca de Projetos por Email */}
+  if (currentScreen === 'project_search') {
+    return (
+      <ProjectSearch
+        onBack={() => setCurrentScreen('home')}
+      />
+    );
+  }
+
   return (
-    <Home 
+    <Home
       onOpenLogin={() => {
         setAccessDeniedError('');
         setCurrentScreen('login');
-      }} 
-      onOpenForm={() => setCurrentScreen('public_form')} 
+      }}
+      onOpenForm={() => setCurrentScreen('public_form')}
+      onOpenProjectSearch={() => setCurrentScreen('project_search')}
     />
   );
 }
