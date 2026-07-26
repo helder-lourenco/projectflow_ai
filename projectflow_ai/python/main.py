@@ -6,16 +6,21 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from google import genai
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Configuração Gemini
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+# ─── CONFIGURAÇÃO KIMI (MOONSHOT AI) ───
+# A API do Kimi é 100% compatível com OpenAI.
+# Basta trocar a base_url e usar sua MOONSHOT_API_KEY.
+client = OpenAI(
+    api_key=os.getenv("MOONSHOT_API_KEY"),
+    base_url="https://api.moonshot.ai/v1",
+)
+MODEL = os.getenv("KIMI_MODEL", "kimi-k2.6")
 
-# Cache simples em memória (substituir por Redis em produção)
+# Cache simples em memória
 cache = {}
 
 @asynccontextmanager
@@ -24,8 +29,8 @@ async def lifespan(app: FastAPI):
     cache.clear()
 
 app = FastAPI(
-    title="ProjectFlow AI — Gemini Orchestrator",
-    version="1.1.0",
+    title="ProjectFlow AI — Kimi Orchestrator",
+    version="2.0.0",
     lifespan=lifespan
 )
 
@@ -52,7 +57,7 @@ class DemandAnalysisResponse(BaseModel):
 
 # ─── HELPERS ───
 def extract_json(text: str) -> dict:
-    """Extrai JSON da resposta do Gemini de forma robusta."""
+    """Extrai JSON da resposta do Kimi de forma robusta."""
     # Tenta bloco markdown
     match = re.search(r'```json\s*(\{.*?\})\s*```', text, re.DOTALL)
     if match:
@@ -66,13 +71,14 @@ def extract_json(text: str) -> dict:
 # ─── ENDPOINTS ───
 @app.post("/api/v1/ai/analyze-demand", response_model=DemandAnalysisResponse)
 async def analyze_demand(data: DemandAnalysisRequest):
-    # Cache por hash do conteúdo
     cache_key = hash(f"{data.title}:{data.description}:{data.department}")
     if cache_key in cache:
         return DemandAnalysisResponse(**cache[cache_key])
 
-    prompt = f"""
-Você é o agente de governança do ProjectFlow AI. Analise a seguinte demanda corporativa:
+    system_prompt = """Você é o agente de governança do ProjectFlow AI. Analise a demanda corporativa e retorne estritamente um JSON válido."""
+
+    user_prompt = f"""Analise a seguinte demanda corporativa:
+
 Título: {data.title}
 Setor: {data.department}
 Descrição: {data.description}
@@ -83,31 +89,36 @@ Retorne uma resposta estritamente no seguinte formato JSON (sem markdown de bloc
   "complexity_score": valor inteiro de 1 a 100,
   "estimated_hours": valor inteiro estimado de horas,
   "estimated_cost": valor numérico estimado em reais,
-  "justification": "Breve justificativa técnica da análise"
+  "justification": "Breve justificativa técnica da análise em português"
 }}
 """
 
     try:
-        response = client.models.generate_content(
+        response = client.chat.completions.create(
             model=MODEL,
-            contents=prompt,
-            config={"response_mime_type": "application/json"}
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.2,
+            max_tokens=1024
         )
 
-        result = extract_json(response.text)
+        result = extract_json(response.choices[0].message.content)
         cache[cache_key] = result
         return result
 
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=502, detail=f"Resposta da IA não é JSON válido: {str(e)}")
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Erro na API Gemini: {str(e)}")
+        raise HTTPException(status_code=502, detail=f"Erro na API Kimi: {str(e)}")
 
 @app.get("/health")
 async def health():
     return {
         "status": "ok",
         "service": "projectflow-ai",
+        "provider": "kimi-moonshot",
         "model": MODEL,
         "cache_size": len(cache)
     }

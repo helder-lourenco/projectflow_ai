@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 import { 
   Lightbulb, 
   Rocket, 
@@ -10,44 +11,96 @@ import {
   TrendingUp, 
   BarChart2, 
   ShieldCheck, 
-  ArrowRight 
+  ArrowRight,
+  Loader2
 } from 'lucide-react';
 
-// 1. Desestruture as props corretas enviadas pelo App.js
-export default function Home({ onOpenLogin, onOpenForm }) {
+export default function Home({ onOpenLogin, onOpenForm, onOpenProjectSearch }) {
   const [searchProtocol, setSearchProtocol] = useState('');
   const [searchResult, setSearchResult] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
 
-  const topIdeas = [
-    {
-      id: 'PROJ-8921',
-      title: 'Automação de Conciliação Financeira com IA',
-      department: 'Financeiro',
-      score: 94,
-      author: 'Lucas Mendes',
-      status: 'Aprovado pelo PO',
-      description: 'Implementação de agente de inteligência artificial para otimizar 80% do tempo de conciliação diária de extratos bancários.'
-    },
-    {
-      id: 'PROJ-7740',
-      title: 'Portal de Gestão Integrada de Contratos (Conecta)',
-      department: 'Jurídico / TI',
-      score: 91,
-      author: 'Helder Lourenço',
-      status: 'Em Andamento',
-      description: 'Plataforma centralizada para assinatura, acompanhamento e alertas preditivos de vencimento de contratos.'
-    },
-    {
-      id: 'PROJ-6102',
-      title: 'Onboarding Automatizado para Novos Colaboradores',
-      department: 'Recursos Humanos',
-      score: 88,
-      author: 'Mariana Silva',
-      status: 'Em Análise da IA',
-      description: 'Assistente virtual para treinamento e liberações de acesso nos primeiros 3 dias de contratação.'
+  // Estados dinâmicos do banco
+  const [metrics, setMetrics] = useState({ totalIdeas: 0, inProgress: 0 });
+  const [topIdeas, setTopIdeas] = useState([]);
+  const [loadingMetrics, setLoadingMetrics] = useState(true);
+  const [loadingIdeas, setLoadingIdeas] = useState(true);
+
+  // Buscar métricas e top ideas ao montar o componente
+  useEffect(() => {
+    fetchMetrics();
+    fetchTopIdeas();
+  }, []);
+
+  const fetchMetrics = async () => {
+    try {
+      // Total de ideias (project_public_forms)
+      const { count: totalIdeas, error: err1 } = await supabase
+        .from('project_public_forms')
+        .select('*', { count: 'exact', head: true });
+
+      // Projetos em andamento
+      const { count: inProgress, error: err2 } = await supabase
+        .from('projects')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'Em_Andamento');
+
+      if (err1) console.error('Erro ao buscar total de ideias:', err1);
+      if (err2) console.error('Erro ao buscar projetos em andamento:', err2);
+
+      setMetrics({
+        totalIdeas: totalIdeas || 0,
+        inProgress: inProgress || 0
+      });
+    } catch (err) {
+      console.error('Erro nas métricas:', err);
+    } finally {
+      setLoadingMetrics(false);
     }
-  ];
+  };
+
+  const fetchTopIdeas = async () => {
+    try {
+      // Busca os projetos/ideias mais recentes com dados do form vinculado
+      const { data: projects, error } = await supabase
+        .from('projects')
+        .select(`
+          id,
+          title,
+          description,
+          department,
+          type,
+          complexity_score,
+          status,
+          created_at,
+          project_public_forms(contact_email)
+        `)
+        .order('complexity_score', { ascending: false })
+        .limit(6);
+
+      if (error) throw error;
+
+      // Mapeia para o formato esperado pela UI
+      const mapped = (projects || []).map((proj, idx) => ({
+        id: proj.id?.slice(0, 8).toUpperCase() || `PROJ-${8000 + idx}`,
+        title: proj.title || 'Sem título',
+        department: proj.department || 'Geral',
+        score: proj.complexity_score || 50,
+        author: proj.project_public_forms?.contact_email?.split('@')[0] || 'Colaborador',
+        status: proj.status || 'Em análise',
+        description: proj.description || 'Projeto corporativo em avaliação pela governança de inovação.',
+        type: proj.type || 'Ideia'
+      }));
+
+      setTopIdeas(mapped);
+    } catch (err) {
+      console.error('Erro ao buscar top ideas:', err);
+      // Fallback vazio em caso de erro
+      setTopIdeas([]);
+    } finally {
+      setLoadingIdeas(false);
+    }
+  };
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -70,7 +123,7 @@ export default function Home({ onOpenLogin, onOpenForm }) {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-cyan-500 selection:text-slate-900">
-      
+
       {/* 1. NAVBAR / HEADER CORPORATIVO */}
       <nav className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -91,7 +144,7 @@ export default function Home({ onOpenLogin, onOpenForm }) {
             <FileText className="w-4 h-4" />
             Nova Ideia / Projeto
           </button>
-          
+
           {/* Botão para Login */}
           <button 
             onClick={onOpenLogin}
@@ -104,7 +157,7 @@ export default function Home({ onOpenLogin, onOpenForm }) {
       </nav>
 
       <main className="max-w-7xl mx-auto px-6 py-10 space-y-16">
-        
+
         {/* HERO SECTION */}
         <section className="text-center py-8 max-w-4xl mx-auto space-y-6">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-400 text-xs font-semibold tracking-wide uppercase">
@@ -120,7 +173,7 @@ export default function Home({ onOpenLogin, onOpenForm }) {
           </h1>
 
           <p className="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
-            O **ProjectFlow AI** utiliza Inteligência Artificial para avaliar, estruturar e acelerar suas propostas corporativas. Envie sua ideia e acompanhe a evolução do projeto em tempo real.
+            O <strong>ProjectFlow AI</strong> utiliza Inteligência Artificial para avaliar, estruturar e acelerar suas propostas corporativas. Envie sua ideia e acompanhe a evolução do projeto em tempo real.
           </p>
 
           <div className="flex flex-wrap justify-center gap-4 pt-4">
@@ -133,17 +186,18 @@ export default function Home({ onOpenLogin, onOpenForm }) {
               Cadastrar Nova Ideia
             </button>
 
-            <a 
-              href="#consultar"
-              className="flex items-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg font-medium transition-all text-base"
+            {/* Botão Consultar Status — agora direciona para ProjectSearch */}
+            <button 
+              onClick={onOpenProjectSearch}
+              className="flex items-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg font-medium transition-all text-base cursor-pointer"
             >
               <Search className="w-5 h-5 text-cyan-400" />
               Consultar Status
-            </a>
+            </button>
           </div>
         </section>
 
-        {/* METRICS SECTION */}
+        {/* METRICS SECTION — Dados dinâmicos do banco */}
         <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-gradient-to-br from-slate-900 to-slate-900/60 border border-slate-800 p-8 rounded-xl relative overflow-hidden group hover:border-cyan-500/40 transition-all">
             <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -151,9 +205,13 @@ export default function Home({ onOpenLogin, onOpenForm }) {
             </div>
             <p className="text-sm font-semibold text-cyan-400 tracking-wider uppercase">Ideias Submetidas</p>
             <div className="flex items-baseline gap-4 mt-2">
-              <span className="text-5xl font-black text-white">142</span>
+              {loadingMetrics ? (
+                <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+              ) : (
+                <span className="text-5xl font-black text-white">{metrics.totalIdeas}</span>
+              )}
               <span className="text-xs text-emerald-400 font-medium bg-emerald-950/60 border border-emerald-800 px-2.5 py-1 rounded-full flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" /> +18% este mês
+                <TrendingUp className="w-3 h-3" /> Atualizado agora
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-3">Ideias registradas por colaboradores de todos os setores da empresa.</p>
@@ -165,7 +223,11 @@ export default function Home({ onOpenLogin, onOpenForm }) {
             </div>
             <p className="text-sm font-semibold text-indigo-400 tracking-wider uppercase">Projetos em Andamento</p>
             <div className="flex items-baseline gap-4 mt-2">
-              <span className="text-5xl font-black text-white">28</span>
+              {loadingMetrics ? (
+                <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+              ) : (
+                <span className="text-5xl font-black text-white">{metrics.inProgress}</span>
+              )}
               <span className="text-xs text-indigo-300 font-medium bg-indigo-950/60 border border-indigo-800 px-2.5 py-1 rounded-full">
                 Em execução ativa
               </span>
@@ -219,7 +281,7 @@ export default function Home({ onOpenLogin, onOpenForm }) {
           </div>
         </section>
 
-        {/* SEARCH SECTION */}
+        {/* SEARCH SECTION — mantido como está, mas com busca real futura */}
         <section id="consultar" className="bg-gradient-to-r from-slate-900 via-slate-900 to-cyan-950/30 border border-slate-800 rounded-2xl p-8 space-y-6">
           <div className="max-w-xl">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -269,7 +331,7 @@ export default function Home({ onOpenLogin, onOpenForm }) {
           )}
         </section>
 
-        {/* HIGHLIGHTS SECTION */}
+        {/* HIGHLIGHTS SECTION — Dados dinâmicos do banco */}
         <section className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -283,31 +345,43 @@ export default function Home({ onOpenLogin, onOpenForm }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {topIdeas.map((idea) => (
-              <div 
-                key={idea.id} 
-                className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl p-6 flex flex-col justify-between transition-all hover:translate-y-[-2px]"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono text-slate-400">{idea.id}</span>
-                    <span className="text-xs font-bold text-amber-400 bg-amber-950/60 border border-amber-800/80 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                      <ShieldCheck className="w-3 h-3" /> Score IA: {idea.score}/100
-                    </span>
+          {loadingIdeas ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+            </div>
+          ) : topIdeas.length === 0 ? (
+            <div className="text-center py-12 bg-slate-900/40 border border-slate-800 rounded-2xl">
+              <Sparkles className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+              <p className="text-slate-400 text-sm">Nenhuma ideia em destaque no momento.</p>
+              <p className="text-slate-600 text-xs mt-1">Seja o primeiro a cadastrar uma ideia!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {topIdeas.map((idea) => (
+                <div 
+                  key={idea.id} 
+                  className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl p-6 flex flex-col justify-between transition-all hover:translate-y-[-2px]"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono text-slate-400">{idea.id}</span>
+                      <span className="text-xs font-bold text-amber-400 bg-amber-950/60 border border-amber-800/80 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                        <ShieldCheck className="w-3 h-3" /> Score IA: {idea.score}/100
+                      </span>
+                    </div>
+
+                    <h3 className="font-bold text-white text-lg leading-snug">{idea.title}</h3>
+                    <p className="text-xs text-slate-400 leading-relaxed line-clamp-3">{idea.description}</p>
                   </div>
 
-                  <h3 className="font-bold text-white text-lg leading-snug">{idea.title}</h3>
-                  <p className="text-xs text-slate-400 leading-relaxed line-clamp-3">{idea.description}</p>
+                  <div className="pt-4 mt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
+                    <span>{idea.author} • <strong className="text-slate-400">{idea.department}</strong></span>
+                    <span className="text-cyan-400 font-medium">{idea.status}</span>
+                  </div>
                 </div>
-
-                <div className="pt-4 mt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
-                  <span>{idea.author} • <strong className="text-slate-400">{idea.department}</strong></span>
-                  <span className="text-cyan-400 font-medium">{idea.status}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
 
       </main>
