@@ -3,12 +3,12 @@ import Home from './pages/Home';
 import PublicForm from './pages/PublicForm';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import AdminDashboard from './pages/AdminDashboard';
+//import AdminDashboard from './pages/AdminDashboard';
 import ProjectSearch from './pages/ProjectSearch';
 import { supabase } from './supabaseClient';
 
 const ALLOWED_ROLES = ['administrador', 'desenvolvedor', 'po', 'scrum master', 'teste'];
-const ADMIN_ROLES = ['administrador'];
+//const ADMIN_ROLES = ['administrador'];
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -111,7 +111,7 @@ export default function App() {
       </div>
     );
   }
-
+/*
   if (session && profile) {
     const currentUser = {
       id: session.user?.id || profile.id,
@@ -122,7 +122,7 @@ export default function App() {
     };
 
     const userRole = (profile.role || '').toLowerCase().trim();
-    const isAdmin = ADMIN_ROLES.includes(userRole);
+    //const isAdmin = ADMIN_ROLES.includes(userRole);
 
     if (isAdmin) {
       return (
@@ -130,7 +130,7 @@ export default function App() {
     /*      userSession={currentUser}
           profile={profile}
           onLogout={handleLogout}
-          */
+          /
          userSession={session}
         />
       );
@@ -144,6 +144,25 @@ export default function App() {
       />
     );
   }
+  */
+
+  if (session && profile) {
+  const currentUser = {
+    id: session.user?.id || profile.id,
+    email: session.user?.email || profile.email,
+    fullName: profile.full_name || session.user?.email?.split('@')[0],
+    role: profile.role,
+    department: profile.department || 'Geral'
+  };
+
+  return (
+    <Dashboard
+      userSession={currentUser}
+      profile={profile}
+      onLogout={handleLogout}
+    />
+  );
+}
 
   if (currentScreen === 'login') {
     return (
