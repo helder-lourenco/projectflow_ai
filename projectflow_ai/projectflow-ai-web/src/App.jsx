@@ -127,9 +127,11 @@ export default function App() {
     if (isAdmin) {
       return (
         <AdminDashboard
-          userSession={currentUser}
+    /*      userSession={currentUser}
           profile={profile}
           onLogout={handleLogout}
+          */
+         userSession={session}
         />
       );
     }
