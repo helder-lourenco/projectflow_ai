@@ -31,18 +31,18 @@ export default function AdminDashboard({ userSession, metrics, projects, onRefre
 
   // Pendentes de aprovação
   const pendingApprovals = useMemo(() => {
-    return projects.filter(p => ['Pendente', 'Em Análise'].includes(p.status));
+    return (projects || []).filter(p => ['Pendente', 'Em Análise'].includes(p.status));
   }, [projects]);
 
   // Lista de usuários para o filtro de ideias
   const userList = useMemo(() => {
-    const users = projects.map(p => p.created_by_name || p.assigned_to_name || 'Usuário').filter(Boolean);
+    const users = (projects || []).map(p => p.created_by_name || p.assigned_to_name || 'Usuário').filter(Boolean);
     return Array.from(new Set(users));
   }, [projects]);
 
   // Filtragem e ordenação do Top 10 Ideias
   const processedIdeas = useMemo(() => {
-    let list = [...projects];
+    let list = [...(projects || [])];
 
     if (selectedStatus !== 'ALL') {
       list = list.filter(item => item.status === selectedStatus);
@@ -64,11 +64,39 @@ export default function AdminDashboard({ userSession, metrics, projects, onRefre
   const handleOpenDrawer = (idea) => {
     setSelectedIdea(idea);
     setIsDrawerOpen(true);
+    // Bloqueia scroll do body quando drawer abre
+    document.body.style.overflow = 'hidden';
+  };
+
+  const handleCloseDrawer = () => {
+    setIsDrawerOpen(false);
+    document.body.style.overflow = '';
+    setTimeout(() => setSelectedIdea(null), 300);
   };
 
   const checkIfOverdue = (dueDate, status) => {
     if (!dueDate || status === 'Concluído') return false;
     return new Date(dueDate) < new Date();
+  };
+
+  // --- APROVAR/REJEITAR DIRETO DO DRAWER ---
+  const handleDrawerAction = async (newStatus) => {
+    if (!selectedIdea) return;
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .update({ status: newStatus, updated_at: new Date() })
+        .eq('id', selectedIdea.id);
+
+      if (error) throw error;
+      
+      setSelectedIdea(prev => ({ ...prev, status: newStatus }));
+      if (onRefresh) onRefresh();
+      
+      setTimeout(() => handleCloseDrawer(), 600);
+    } catch (err) {
+      console.error('Erro ao atualizar status:', err.message);
+    }
   };
 
   // --- CADASTRO DE NOVO USUÁRIO ---
@@ -122,7 +150,7 @@ export default function AdminDashboard({ userSession, metrics, projects, onRefre
     }
   };
 
-  const ganttProjects = projects.slice(0, 4).map((p, idx) => ({
+  const ganttProjects = (projects || []).slice(0, 4).map((p, idx) => ({
     name: p.title || `Projeto ${idx + 1}`,
     dept: p.department || 'Geral',
     startCol: (idx % 3) + 1,
@@ -135,7 +163,7 @@ export default function AdminDashboard({ userSession, metrics, projects, onRefre
   return (
     <div className="space-y-8 animate-fadeIn relative">
       
-      {/* CAVEÇALHO COM AÇÕES DO ADMIN */}
+      {/* CABEÇALHO COM AÇÕES DO ADMIN */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
         <div>
           <h1 className="text-2xl font-black text-white flex items-center gap-2">
@@ -160,7 +188,7 @@ export default function AdminDashboard({ userSession, metrics, projects, onRefre
           <div className="flex justify-between items-start">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Demandas Submetidas</p>
-              <h3 className="text-3xl font-black text-white mt-1">{metrics.totalProjects || 0}</h3>
+              <h3 className="text-3xl font-black text-white mt-1">{(metrics || {}).totalProjects || 0}</h3>
             </div>
             <span className="p-2.5 bg-cyan-950 text-cyan-400 rounded-xl border border-cyan-800">
               <Layers className="w-5 h-5" />
@@ -198,7 +226,7 @@ export default function AdminDashboard({ userSession, metrics, projects, onRefre
           <div className="flex justify-between items-start">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Concluídos</p>
-              <h3 className="text-3xl font-black text-emerald-400 mt-1">{metrics.completed || 0}</h3>
+              <h3 className="text-3xl font-black text-emerald-400 mt-1">{(metrics || {}).completed || 0}</h3>
             </div>
             <span className="p-2.5 bg-emerald-950 text-emerald-400 rounded-xl border border-emerald-800">
               <Activity className="w-5 h-5" />
@@ -353,100 +381,164 @@ export default function AdminDashboard({ userSession, metrics, projects, onRefre
         </div>
       </div>
 
-      {/* 3. DRAWER LATERAL DE DETALHES DA IDEIA */}
+      {/* ========================================== */}
+      {/* DRAWER LATERAL - VERSÃO SIMPLIFICADA       */}
+      {/* ========================================== */}
       {isDrawerOpen && selectedIdea && (
-        <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
-          <div className="absolute inset-y-0 left-0 max-w-full flex">
-            <div className="w-screen max-w-md bg-slate-900 border-r border-slate-800 shadow-2xl p-6 flex flex-col justify-between overflow-y-auto">
-              <div className="space-y-6">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="p-2 bg-cyan-950 text-cyan-400 rounded-lg border border-cyan-800">
-                      <Sparkles className="w-4 h-4" />
-                    </span>
-                    <h3 className="text-base font-bold text-white">Detalhes da Demanda</h3>
-                  </div>
-                  <button 
-                    onClick={() => setIsDrawerOpen(false)}
-                    className="p-1.5 text-slate-400 hover:text-white bg-slate-950 border border-slate-800 rounded-lg cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+        <>
+          {/* Overlay escuro - z-40 para ficar abaixo do drawer */}
+          <div 
+            className="fixed inset-0 bg-black/60 z-40"
+            style={{ backdropFilter: 'blur(4px)' }}
+            onClick={handleCloseDrawer}
+          />
+          
+          {/* Painel lateral - z-50 para ficar acima de tudo */}
+          <div 
+            className="fixed inset-y-0 left-0 w-full max-w-md bg-slate-900 border-r border-slate-800 shadow-2xl z-50 flex flex-col"
+            style={{ maxHeight: '100vh' }}
+          >
+            {/* Conteúdo scrollável */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              
+              {/* CABEÇALHO */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-2">
+                  <span className="p-2 bg-cyan-950 text-cyan-400 rounded-lg border border-cyan-800">
+                    <Sparkles className="w-4 h-4" />
+                  </span>
+                  <h3 className="text-base font-bold text-white">Detalhes da Demanda</h3>
                 </div>
-
-                <div className="space-y-2">
-                  <h2 className="text-lg font-extrabold text-white">{selectedIdea.title}</h2>
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
-                      selectedIdea.status === 'Concluído' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' :
-                      selectedIdea.status === 'Em Andamento' ? 'bg-blue-950 text-blue-400 border-blue-800' :
-                      'bg-amber-950 text-amber-400 border-amber-800'
-                    }`}>
-                      {selectedIdea.status || 'Pendente'}
-                    </span>
-
-                    {checkIfOverdue(selectedIdea.due_date, selectedIdea.status) ? (
-                      <span className="px-2.5 py-1 bg-rose-950 text-rose-400 border border-rose-800 text-xs font-bold rounded-full flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" /> Em Atraso
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-1 bg-slate-950 text-emerald-400 border border-slate-800 text-xs font-semibold rounded-full">
-                        No Prazo
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800/80">
-                  <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Descrição</p>
-                  <p className="text-xs text-slate-200 leading-relaxed">
-                    {selectedIdea.description || 'Sem descrição.'}
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80 flex items-center justify-between">
-                    <span className="text-xs text-slate-400">Último Aprovador:</span>
-                    <span className="text-xs font-bold text-cyan-400">
-                      {selectedIdea.last_approver_name || selectedIdea.approved_by || 'Aguardando'}
-                    </span>
-                  </div>
-
-                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80 flex items-center justify-between">
-                    <span className="text-xs text-slate-400">Departamento:</span>
-                    <span className="text-xs font-semibold text-white">
-                      {selectedIdea.department || 'Geral'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800/80">
-                  <p className="text-xs font-semibold text-slate-400 uppercase mb-2 flex items-center gap-1.5">
-                    <Activity className="w-3.5 h-3.5 text-cyan-400" />
-                    Última Atividade no Kanban
-                  </p>
-                  <div className="text-xs text-slate-300 space-y-1">
-                    <p className="font-semibold text-white">
-                      {selectedIdea.last_kanban_activity || 'Movido para análise'}
-                    </p>
-                    <span className="text-[10px] text-slate-500 block">
-                      {selectedIdea.updated_at ? new Date(selectedIdea.updated_at).toLocaleString('pt-BR') : 'Recentemente'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t border-slate-800 pt-4">
                 <button 
-                  onClick={() => setIsDrawerOpen(false)}
-                  className="w-full py-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  onClick={handleCloseDrawer}
+                  className="p-1.5 text-slate-400 hover:text-white bg-slate-950 border border-slate-800 rounded-lg cursor-pointer transition-colors"
                 >
-                  Fechar Painel
+                  <X className="w-4 h-4" />
                 </button>
               </div>
+
+              {/* TÍTULO E STATUS */}
+              <div className="space-y-2">
+                <h2 className="text-lg font-extrabold text-white leading-tight">{selectedIdea.title}</h2>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
+                    selectedIdea.status === 'Concluído' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' :
+                    selectedIdea.status === 'Em Andamento' ? 'bg-blue-950 text-blue-400 border-blue-800' :
+                    selectedIdea.status === 'Cancelado' ? 'bg-rose-950 text-rose-400 border-rose-800' :
+                    'bg-amber-950 text-amber-400 border-amber-800'
+                  }`}>
+                    {selectedIdea.status || 'Pendente'}
+                  </span>
+
+                  {checkIfOverdue(selectedIdea.due_date, selectedIdea.status) ? (
+                    <span className="px-2.5 py-1 bg-rose-950 text-rose-400 border border-rose-800 text-xs font-bold rounded-full flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> Em Atraso
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-1 bg-slate-950 text-emerald-400 border border-slate-800 text-xs font-semibold rounded-full">
+                      No Prazo
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* DESCRIÇÃO */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800/80">
+                <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Descrição</p>
+                <p className="text-xs text-slate-200 leading-relaxed">
+                  {selectedIdea.description || 'Sem descrição.'}
+                </p>
+              </div>
+
+              {/* INFORMAÇÕES */}
+              <div className="space-y-3">
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80 flex items-center justify-between">
+                  <span className="text-xs text-slate-400">Autor:</span>
+                  <span className="text-xs font-semibold text-white">
+                    {selectedIdea.created_by_name || selectedIdea.assigned_to_name || 'Não informado'}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80 flex items-center justify-between">
+                  <span className="text-xs text-slate-400">Último Aprovador:</span>
+                  <span className="text-xs font-bold text-cyan-400">
+                    {selectedIdea.last_approver_name || selectedIdea.approved_by || 'Aguardando'}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80 flex items-center justify-between">
+                  <span className="text-xs text-slate-400">Departamento:</span>
+                  <span className="text-xs font-semibold text-white">
+                    {selectedIdea.department || 'Geral'}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80 flex items-center justify-between">
+                  <span className="text-xs text-slate-400">Data de Criação:</span>
+                  <span className="text-xs font-mono text-slate-300">
+                    {selectedIdea.created_at ? new Date(selectedIdea.created_at).toLocaleDateString('pt-BR') : '-'}
+                  </span>
+                </div>
+              </div>
+
+              {/* ATIVIDADE KANBAN */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800/80">
+                <p className="text-xs font-semibold text-slate-400 uppercase mb-2 flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5 text-cyan-400" />
+                  Última Atividade no Kanban
+                </p>
+                <div className="text-xs text-slate-300 space-y-1">
+                  <p className="font-semibold text-white">
+                    {selectedIdea.last_kanban_activity || 'Movido para análise'}
+                  </p>
+                  <span className="text-[10px] text-slate-500 block">
+                    {selectedIdea.updated_at ? new Date(selectedIdea.updated_at).toLocaleString('pt-BR') : 'Recentemente'}
+                  </span>
+                </div>
+              </div>
             </div>
+
+            {/* BOTÕES DE AÇÃO - FIXOS NO RODAPÉ */}
+            <div className="border-t border-slate-800 p-6 space-y-3 bg-slate-900">
+              
+              {/* Aprovar/Rejeitar só aparecem se ainda estiver pendente/em análise */}
+              {(selectedIdea.status === 'Pendente' || selectedIdea.status === 'Em Análise') && (
+                <div className="grid grid-cols-2 gap-3">
+                  <button 
+                    onClick={() => handleDrawerAction('Em Andamento')}
+                    className="flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" /> Aprovar
+                  </button>
+                  <button 
+                    onClick={() => handleDrawerAction('Cancelado')}
+                    className="flex items-center justify-center gap-2 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  >
+                    <X className="w-4 h-4" /> Rejeitar
+                  </button>
+                </div>
+              )}
+
+              {/* Se já estiver concluído, mostra apenas reabrir */}
+              {selectedIdea.status === 'Concluído' && (
+                <button 
+                  onClick={() => handleDrawerAction('Em Andamento')}
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  Reabrir Demanda
+                </button>
+              )}
+
+              <button 
+                onClick={handleCloseDrawer}
+                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                Fechar Painel
+              </button>
+            </div>
+
           </div>
-        </div>
+        </>
       )}
 
       {/* MODAL: CADASTRO DE NOVO USUÁRIO (EXCLUSIVO ADMIN) */}
